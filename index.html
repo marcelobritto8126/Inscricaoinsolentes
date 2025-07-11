@@ -1,3 +1,4 @@
+<!-- Começo do HTML completo -->
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -82,9 +83,9 @@
   <div id="horariosArea"></div>
   <p><b>Total: R$ <span id="valorTotal">0</span>,00</b></p>
 
-  <!-- LINK DE PAGAMENTO ADICIONADO -->
+  <!-- LINK DE PAGAMENTO ATUALIZADO -->
   <p><b>Pagamento:</b></p>
-  <a id="linkPagamento" href="https://pagamento.exemplo.com" target="_blank" style="color:#007bff;">Clique aqui para pagar</a>
+  <a id="linkPagamento" href="https://mpago.la/1JPi8Cq" target="_blank" style="color:#007bff;">Clique aqui para pagar</a>
 
   <button id="btnConfirmar">✅ Confirmar Pagamento</button>
 </div>
@@ -222,7 +223,7 @@
         }
         renderHorarios();
         atualizarValorTotal();
-        atualizarLinkPagamento(); // ATUALIZA O LINK DE PAGAMENTO SEMBRAR ALTERAR LÓGICA HORÁRIOS
+        atualizarLinkPagamento();
       };
 
       area.appendChild(btn);
@@ -234,16 +235,26 @@
     document.getElementById('valorTotal').textContent = selecionados.length * VALOR_POR_HORA;
   }
 
-  // ADICIONEI ESSA FUNÇÃO APENAS PARA MUDAR LINK DE PAGAMENTO SEM MEXER EM OUTRAS PARTES
+  // ✅ FUNÇÃO ATUALIZADA COM OS LINKS DE PAGAMENTO CORRETOS
   function atualizarLinkPagamento() {
     const link = document.getElementById('linkPagamento');
     const valorTotal = selecionados.length * VALOR_POR_HORA;
+
     if (valorTotal === 0) {
       link.textContent = 'Clique aqui para pagar';
-      link.href = 'https://pagamento.exemplo.com';
+      link.href = 'https://mpago.la/1JPi8Cq';
+    } else if (valorTotal === 3) {
+      link.textContent = 'Pagar R$ 3,00';
+      link.href = 'https://mpago.la/1JPi8Cq';
+    } else if (valorTotal === 6) {
+      link.textContent = 'Pagar R$ 6,00';
+      link.href = 'https://mpago.la/196kFhN';
+    } else if (valorTotal === 9) {
+      link.textContent = 'Pagar R$ 9,00';
+      link.href = 'https://mpago.la/2vo1T6X';
     } else {
-      link.textContent = `Pagar R$ ${valorTotal},00`;
-      link.href = `https://pagamento.exemplo.com/pagar?valor=${valorTotal}`;
+      link.textContent = 'Valor inválido';
+      link.href = '#';
     }
   }
 
@@ -252,10 +263,10 @@
     const nick2 = document.getElementById('nick2').value.trim();
     const whatsapp = document.getElementById('whatsapp').value.trim();
 
-    if (!nick1) { alert('Preencha Nick 1'); return; }
-    if (!nick2) { alert('Preencha Nick 2'); return; }
-    if (whatsapp.length !== 11) { alert('WhatsApp deve ter 11 dígitos'); return; }
-    if (selecionados.length === 0) { alert('Selecione ao menos um horário'); return; }
+    if (!nick1 || !nick2 || whatsapp.length !== 11 || selecionados.length === 0) {
+      alert('Preencha todos os campos corretamente.');
+      return;
+    }
 
     const data = new Date();
     const nova = {
@@ -275,7 +286,7 @@
       document.getElementById('nick2').value = '';
       document.getElementById('whatsapp').value = '';
       renderHorarios();
-      atualizarLinkPagamento(); // limpa link depois de confirmar inscrição
+      atualizarLinkPagamento();
       mostrarComprovante(nova);
     } catch(e) {
       alert("Erro ao confirmar inscrição");
@@ -390,9 +401,8 @@
   carregarLinks();
   carregarInscritos();
   renderHorarios();
-  atualizarLinkPagamento(); // garante link inicial correto
-
+  atualizarLinkPagamento();
 </script>
 
 </body>
-</html>
+  </html>
