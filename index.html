@@ -82,8 +82,9 @@
   <div id="horariosArea"></div>
   <p><b>Total: R$ <span id="valorTotal">0</span>,00</b></p>
 
+  <!-- LINK DE PAGAMENTO ADICIONADO -->
   <p><b>Pagamento:</b></p>
-  <a href="https://pagamento.exemplo.com" target="_blank" style="color:#007bff;">Clique aqui para pagar</a>
+  <a id="linkPagamento" href="https://pagamento.exemplo.com" target="_blank" style="color:#007bff;">Clique aqui para pagar</a>
 
   <button id="btnConfirmar">✅ Confirmar Pagamento</button>
 </div>
@@ -221,6 +222,7 @@
         }
         renderHorarios();
         atualizarValorTotal();
+        atualizarLinkPagamento(); // ATUALIZA O LINK DE PAGAMENTO SEMBRAR ALTERAR LÓGICA HORÁRIOS
       };
 
       area.appendChild(btn);
@@ -230,6 +232,19 @@
 
   function atualizarValorTotal() {
     document.getElementById('valorTotal').textContent = selecionados.length * VALOR_POR_HORA;
+  }
+
+  // ADICIONEI ESSA FUNÇÃO APENAS PARA MUDAR LINK DE PAGAMENTO SEM MEXER EM OUTRAS PARTES
+  function atualizarLinkPagamento() {
+    const link = document.getElementById('linkPagamento');
+    const valorTotal = selecionados.length * VALOR_POR_HORA;
+    if (valorTotal === 0) {
+      link.textContent = 'Clique aqui para pagar';
+      link.href = 'https://pagamento.exemplo.com';
+    } else {
+      link.textContent = `Pagar R$ ${valorTotal},00`;
+      link.href = `https://pagamento.exemplo.com/pagar?valor=${valorTotal}`;
+    }
   }
 
   async function confirmarInscricao() {
@@ -260,6 +275,7 @@
       document.getElementById('nick2').value = '';
       document.getElementById('whatsapp').value = '';
       renderHorarios();
+      atualizarLinkPagamento(); // limpa link depois de confirmar inscrição
       mostrarComprovante(nova);
     } catch(e) {
       alert("Erro ao confirmar inscrição");
@@ -358,7 +374,6 @@
     }
   }
 
-  // Expor funções para escopo global para acesso via onclick inline ou botões
   window.confirmarInscricao = confirmarInscricao;
   window.entrarADM = entrarADM;
   window.salvarLinks = salvarLinks;
@@ -366,17 +381,17 @@
   window.excluirInscricao = excluirInscricao;
   window.mostrarInscricoesADM = mostrarInscricoesADM;
 
-  // Associa eventos aos botões, caso prefira JS ao invés de onclick inline
   document.getElementById('btnConfirmar').addEventListener('click', confirmarInscricao);
   document.getElementById('btnEntrarADM').addEventListener('click', entrarADM);
   document.getElementById('btnSalvarLinks').addEventListener('click', salvarLinks);
   document.getElementById('btnLimparInscricoes').addEventListener('click', limparInscricoes);
   document.getElementById('filtroHorario').addEventListener('change', mostrarInscricoesADM);
 
-  // Inicializa dados
   carregarLinks();
   carregarInscritos();
   renderHorarios();
+  atualizarLinkPagamento(); // garante link inicial correto
+
 </script>
 
 </body>
