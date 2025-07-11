@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>📋 Inscrição Diário INS DUO</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f9f9f9; padding:20px; max-width:600px; margin:auto; color:#222; }
+    h2 { text-align:center; margin-bottom:20px; }
+    label { display:block; margin-top:15px; font-weight:bold; }
+    input, select, button { width:100%; padding:10px; margin-top:5px; box-sizing:border-box; border-radius:6px; border:1px solid #ccc; font-size:16px; }
+    button { background:#007bff; color:#fff; cursor:pointer; }
+    button:hover:not(:disabled) { background:#0056b3; }
+    .horario-btn {
+      display:block;
+      margin-top:10px;
+      padding:10px;
+      font-weight:bold;
+      text-align:left;
+      border:none;
+      border-radius:6px;
+      cursor:pointer;
+      transition: background-color 0.2s;
+      user-select:none;
+    }
+    .horario-btn.available { background:#e0ffe0; color:#000; }
+    .horario-btn.selected { background:#ffcc80; color:#000; }
+    .horario-btn.lotado { background:#ffdddd; color:red; cursor:not-allowed; }
+    .comprovante, .painel {
+      background:#fff;
+      padding:15px;
+      border-radius:8px;
+      margin-top:20px;
+      box-shadow:0 0 8px rgba(0,0,0,0.1);
+    }
+    .btn-excluir {
+      background:#dc3545;
+      color:#fff;
+      border:none;
+      padding:6px 12px;
+      border-radius:5px;
+      margin-top:10px;
+      cursor:pointer;
+      font-weight:bold;
+    }
+    .btn-excluir:hover { background:#b02a37; }
+    .btn-limpar {
+      background:#dc3545;
+      color:#fff;
+      padding:12px;
+      margin-top:15px;
+      width:100%;
+      border:none;
+      border-radius:6px;
+      cursor:pointer;
+      font-weight:bold;
+    }
+    .btn-limpar:hover { background:#b02a37; }
+    .inscricao-item {
+      border-bottom: 1px solid #ddd;
+      padding: 10px 0;
+      margin-bottom: 10px;
+    }
+    .inscricao-item div {
+      margin: 3px 0;
+    }
+  </style>
+</head>
+<body>
+
+<h2>📋 DIÁRIO INSOLENTES - MODO DUO</h2>
+
+<div>
+  <label>Nick 1:</label>
+  <input type="text" id="nick1" maxlength="30" />
+  <label>Nick 2:</label>
+  <input type="text" id="nick2" maxlength="30" />
+  <label>WhatsApp (11 dígitos):</label>
+  <input type="text" id="whatsapp" maxlength="11" oninput="this.value=this.value.replace(/\D/g,'')" />
+
+  <label style="margin-top:20px;">Escolha os horários:</label>
+  <div id="horariosArea"></div>
+  <p><b>Total: R$ <span id="valorTotal">0</span>,00</b></p>
+
+  <p><b>Pagamento:</b></p>
+  <a href="https://pagamento.exemplo.com" target="_blank" style="color:#007bff;">Clique aqui para pagar</a>
+
+  <button id="btnConfirmar">✅ Confirmar Pagamento</button>
+</div>
+
+<div class="comprovante" id="comprovanteFinal" style="display:none;"></div>
+
+<!-- Painel ADM -->
+<div class="painel">
+  <h3>🔐 Painel ADM</h3>
+  <input type="password" id="senhaADM" placeholder="Senha do ADM" />
+  <button id="btnEntrarADM">Entrar</button>
+  <div id="painelArea" style="display:none; margin-top:20px;">
+    <h4>Filtrar por horário:</h4>
+    <select id="filtroHorario">
+      <option value="">-- Todos --</option>
+      <option value="19:00">19:00</option>
+      <option value="20:00">20:00</option>
+      <option value="21:00">21:00</option>
+    </select>
+    <div id="listaInscricoes" style="margin-top:15px;"></div>
+
+    <h4>Links por horário:</h4>
+    <label>Link 19:00</label>
+    <input type="text" id="link19" />
+    <label>Link 20:00</label>
+    <input type="text" id="link20" />
+    <label>Link 21:00</label>
+    <input type="text" id="link21" />
+    <button id="btnSalvarLinks">💾 Salvar Links</button>
+
+    <button class="btn-limpar" id="btnLimparInscricoes">🗑️ Apagar todas inscrições</button>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+  import { getDatabase, ref, push, onValue, remove, set, get } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCDG1XlsNYrBkcJFQaxztV-g_f5KmWKTKQ",
+    authDomain: "diaroins.firebaseapp.com",
+    databaseURL: "https://diaroins-default-rtdb.firebaseio.com",
+    projectId: "diaroins",
+    storageBucket: "diaroins.firebasestorage.app",
+    messagingSenderId: "496629295432",
+    appId: "1:496629295432:web:ec32adceccd3e2d8162b7d",
+    measurementId: "G-47GHPMMC59"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  const SENHA_ADM = "2734";
+  const VALOR_POR_HORA = 3;
+  const VAGAS_INICIAIS = 24;
+
+  let inscritos = {};
+  let links = {
+    "19:00": "https://exemplo.com/19",
+    "20:00": "https://exemplo.com/20",
+    "21:00": "https://exemplo.com/21"
+  };
+
+  let vagasDisponiveis = { "19:00": VAGAS_INICIAIS, "20:00": VAGAS_INICIAIS, "21:00": VAGAS_INICIAIS };
+  let selecionados = [];
+
+  async function carregarLinks() {
+    try {
+      const snapshot = await get(ref(db, "links"));
+      if(snapshot.exists()) {
+        links = snapshot.val();
+      }
+      document.getElementById('link19').value = links["19:00"] || "";
+      document.getElementById('link20').value = links["20:00"] || "";
+      document.getElementById('link21').value = links["21:00"] || "";
+    } catch(e) {
+      console.error("Erro ao carregar links:", e);
+    }
+  }
+
+  async function salvarLinks() {
+    links["19:00"] = document.getElementById('link19').value.trim();
+    links["20:00"] = document.getElementById('link20').value.trim();
+    links["21:00"] = document.getElementById('link21').value.trim();
+    try {
+      await set(ref(db, "links"), links);
+      alert("Links salvos com sucesso!");
+    } catch(e) {
+      alert("Erro ao salvar links");
+      console.error(e);
+    }
+  }
+
+  function atualizarVagas() {
+    vagasDisponiveis = { "19:00": VAGAS_INICIAIS, "20:00": VAGAS_INICIAIS, "21:00": VAGAS_INICIAIS };
+    Object.values(inscritos).forEach(i => {
+      i.horarios.forEach(h => {
+        if (vagasDisponiveis[h] > 0) vagasDisponiveis[h]--;
+      });
+    });
+  }
+
+  function renderHorarios() {
+    atualizarVagas();
+    const area = document.getElementById('horariosArea');
+    area.innerHTML = '';
+    for (const h in vagasDisponiveis) {
+      let vagas = vagasDisponiveis[h];
+      const btn = document.createElement('button');
+      btn.type = "button";
+
+      if (selecionados.includes(h)) {
+        vagas = vagas - 1;
+        btn.className = 'horario-btn selected';
+      } else {
+        btn.className = 'horario-btn available';
+      }
+
+      if (vagas <= 0) {
+        btn.textContent = `${h} (LOTOU)`;
+        btn.className = 'horario-btn lotado';
+        btn.disabled = true;
+      } else {
+        btn.textContent = `${h} (${vagas} vagas)`;
+        btn.disabled = false;
+      }
+
+      btn.onclick = () => {
+        if (selecionados.includes(h)) {
+          selecionados = selecionados.filter(x => x !== h);
+        } else {
+          if (vagasDisponiveis[h] > 0) {
+            selecionados.push(h);
+          }
+        }
+        renderHorarios();
+        atualizarValorTotal();
+      };
+
+      area.appendChild(btn);
+    }
+    atualizarValorTotal();
+  }
+
+  function atualizarValorTotal() {
+    document.getElementById('valorTotal').textContent = selecionados.length * VALOR_POR_HORA;
+  }
+
+  async function confirmarInscricao() {
+    const nick1 = document.getElementById('nick1').value.trim();
+    const nick2 = document.getElementById('nick2').value.trim();
+    const whatsapp = document.getElementById('whatsapp').value.trim();
+
+    if (!nick1) { alert('Preencha Nick 1'); return; }
+    if (!nick2) { alert('Preencha Nick 2'); return; }
+    if (whatsapp.length !== 11) { alert('WhatsApp deve ter 11 dígitos'); return; }
+    if (selecionados.length === 0) { alert('Selecione ao menos um horário'); return; }
+
+    const data = new Date();
+    const nova = {
+      nick1,
+      nick2,
+      whatsapp,
+      horarios: [...selecionados],
+      dia: data.toLocaleDateString(),
+      hora: data.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+    };
+
+    try {
+      await push(ref(db, "inscritos"), nova);
+      alert("Inscrição confirmada com sucesso!");
+      selecionados = [];
+      document.getElementById('nick1').value = '';
+      document.getElementById('nick2').value = '';
+      document.getElementById('whatsapp').value = '';
+      renderHorarios();
+      mostrarComprovante(nova);
+    } catch(e) {
+      alert("Erro ao confirmar inscrição");
+      console.error(e);
+    }
+  }
+
+  function mostrarComprovante(dados) {
+    const div = document.getElementById('comprovanteFinal');
+    let html = `<h4>🎉 Inscrição Confirmada</h4>`;
+    html += `<p><b>Nick 1:</b> ${dados.nick1}</p>`;
+    html += `<p><b>Nick 2:</b> ${dados.nick2}</p>`;
+    html += `<p><b>WhatsApp:</b> ${dados.whatsapp}</p>`;
+    html += `<p><b>Data:</b> ${dados.dia}</p>`;
+    html += `<p><b>Hora:</b> ${dados.hora}</p>`;
+    html += `<p><b>Links para Grupo (ID e SENHA):</b></p><ul>`;
+    dados.horarios.forEach(h => {
+      html += `<li>Grupo ${h} (<a href="${links[h]}" target="_blank">link</a>)</li>`;
+    });
+    html += `</ul><p><b>📸 Tire print desta tela. Este é seu comprovante.</b></p>`;
+    div.innerHTML = html;
+    div.style.display = 'block';
+    div.scrollIntoView({behavior:"smooth"});
+  }
+
+  function carregarInscritos() {
+    const inscritosRef = ref(db, "inscritos");
+    onValue(inscritosRef, (snapshot) => {
+      inscritos = snapshot.val() || {};
+      renderHorarios();
+      mostrarInscricoesADM();
+    });
+  }
+
+  function entrarADM() {
+    const senha = document.getElementById('senhaADM').value.trim();
+    if (senha === SENHA_ADM) {
+      document.getElementById('painelArea').style.display = 'block';
+      document.getElementById('senhaADM').value = '';
+      carregarLinks();
+      carregarInscritos();
+    } else {
+      alert('Senha incorreta');
+    }
+  }
+
+  function mostrarInscricoesADM() {
+    const filtro = document.getElementById('filtroHorario').value;
+    const lista = document.getElementById('listaInscricoes');
+    lista.innerHTML = '';
+
+    const inscritosArray = Object.entries(inscritos).map(([key, val]) => ({key, ...val}));
+    const filtrados = filtro ? inscritosArray.filter(i => i.horarios.includes(filtro)) : inscritosArray;
+
+    if (filtrados.length === 0) {
+      lista.innerHTML = '<p>Nenhuma inscrição.</p>';
+      return;
+    }
+
+    filtrados.forEach(i => {
+      const div = document.createElement('div');
+      div.className = 'inscricao-item';
+      div.innerHTML = `
+        <div><b>Slot:</b> ${i.horarios.join(', ')}</div>
+        <div><b>Nick 1:</b> ${i.nick1}</div>
+        <div><b>Nick 2:</b> ${i.nick2}</div>
+        <div><b>WhatsApp:</b> ${i.whatsapp}</div>
+        <button class="btn-excluir" onclick="excluirInscricao('${i.key}')">Excluir</button>
+      `;
+      lista.appendChild(div);
+    });
+  }
+
+  async function excluirInscricao(id) {
+    if (!confirm("Confirma exclusão desta inscrição?")) return;
+    try {
+      await remove(ref(db, `inscritos/${id}`));
+      alert("Inscrição removida!");
+      carregarInscritos();
+    } catch(e) {
+      alert("Erro ao remover inscrição");
+      console.error(e);
+    }
+  }
+
+  async function limparInscricoes() {
+    if (!confirm("Deseja apagar todas as inscrições? Esta ação não pode ser desfeita.")) return;
+    try {
+      await remove(ref(db, "inscritos"));
+      alert("Todas inscrições apagadas!");
+      carregarInscritos();
+      document.getElementById('comprovanteFinal').style.display = 'none';
+    } catch(e) {
+      alert("Erro ao apagar inscrições");
+      console.error(e);
+    }
+  }
+
+  // Expor funções para escopo global para acesso via onclick inline ou botões
+  window.confirmarInscricao = confirmarInscricao;
+  window.entrarADM = entrarADM;
+  window.salvarLinks = salvarLinks;
+  window.limparInscricoes = limparInscricoes;
+  window.excluirInscricao = excluirInscricao;
+  window.mostrarInscricoesADM = mostrarInscricoesADM;
+
+  // Associa eventos aos botões, caso prefira JS ao invés de onclick inline
+  document.getElementById('btnConfirmar').addEventListener('click', confirmarInscricao);
+  document.getElementById('btnEntrarADM').addEventListener('click', entrarADM);
+  document.getElementById('btnSalvarLinks').addEventListener('click', salvarLinks);
+  document.getElementById('btnLimparInscricoes').addEventListener('click', limparInscricoes);
+  document.getElementById('filtroHorario').addEventListener('change', mostrarInscricoesADM);
+
+  // Inicializa dados
+  carregarLinks();
+  carregarInscritos();
+  renderHorarios();
+</script>
+
+</body>
+</html>
