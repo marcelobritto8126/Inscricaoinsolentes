@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>📋 Inscrição Diário INS DUO</title>
   <style>
+    /* (mesmo estilo do seu código original) */
     body { font-family: Arial, sans-serif; background:#f9f9f9; padding:20px; max-width:600px; margin:auto; color:#222; }
     h2 { text-align:center; margin-bottom:20px; }
     label { display:block; margin-top:15px; font-weight:bold; }
@@ -131,7 +132,6 @@
 </div>
 
 <script>
-  // Firebase config e inicialização
   const firebaseConfig = {
     apiKey: "AIzaSyCDG1XlsNYrBkcJFQaxztV-g_f5KmWKTKQ",
     authDomain: "diaroins.firebaseapp.com",
@@ -150,10 +150,36 @@
   const VAGAS_INICIAIS = 24;
 
   let inscritos = [];
-  let vagasDisponiveis = { "19:00": VAGAS_INICIAIS, "20:00": VAGAS_INICIAIS, "21:00": VAGAS_INICIAIS };
   let selecionados = [];
 
-  // Carregar inscritos do Firebase e renderizar
+  let slotsDisponiveis = {};
+
+  function inicializarSlots() {
+    slotsDisponiveis = {};
+    for (const h of ["19:00","20:00","21:00"]) {
+      slotsDisponiveis[h] = [];
+      for(let i=1; i<=VAGAS_INICIAIS; i++) {
+        slotsDisponiveis[h].push(i);
+      }
+    }
+  }
+
+  function atualizarSlots() {
+    inicializarSlots();
+    inscritos.forEach(i => {
+      if(i.slots) {
+        for(const h in i.slots){
+          const vaga = i.slots[h];
+          const arr = slotsDisponiveis[h];
+          const idx = arr.indexOf(vaga);
+          if(idx !== -1){
+            arr.splice(idx,1);
+          }
+        }
+      }
+    });
+  }
+
   function carregarInscritosFirebase() {
     db.ref('inscritos').on('value', snapshot => {
       inscritos = [];
@@ -163,6 +189,7 @@
           inscritos.push({ ...data[key], id: key });
         }
       }
+      atualizarSlots();
       renderHorarios();
       if (document.getElementById('painelArea').style.display === 'block') mostrarInscricoesADM();
     }, error => {
@@ -171,28 +198,15 @@
     });
   }
 
-  // Atualiza vagas disponíveis de acordo com inscritos
-  function atualizarVagas() {
-    vagasDisponiveis = { "19:00": VAGAS_INICIAIS, "20:00": VAGAS_INICIAIS, "21:00": VAGAS_INICIAIS };
-    inscritos.forEach(i => {
-      i.horarios.forEach(h => {
-        if (vagasDisponiveis[h] > 0) vagasDisponiveis[h]--;
-      });
-    });
-  }
-
-  // Renderiza botões dos horários
   function renderHorarios() {
-    atualizarVagas();
     const area = document.getElementById('horariosArea');
     area.innerHTML = '';
-    for (const h in vagasDisponiveis) {
-      let vagas = vagasDisponiveis[h];
+    for (const h in slotsDisponiveis) {
+      let vagas = slotsDisponiveis[h].length;
       const btn = document.createElement('button');
       btn.type = "button";
 
       if (selecionados.includes(h)) {
-        // Conta vaga a menos porque já selecionou
         vagas = vagas - 1;
         btn.className = 'horario-btn selected';
       } else {
@@ -209,12 +223,11 @@
       }
 
       btn.onclick = () => {
-        if (btn.disabled) return; // não faz nada se lotado
-
+        if (btn.disabled) return;
         if (selecionados.includes(h)) {
           selecionados = selecionados.filter(x => x !== h);
         } else {
-          if (vagasDisponiveis[h] > 0) {
+          if (slotsDisponiveis[h].length > 0) {
             selecionados.push(h);
           }
         }
@@ -227,12 +240,10 @@
     atualizarValorTotal();
   }
 
-  // Atualiza valor total exibido
   function atualizarValorTotal() {
     document.getElementById('valorTotal').textContent = selecionados.length * VALOR_POR_HORA;
   }
 
-  // Confirma inscrição: salva no Firebase
   function confirmarInscricao() {
     const nick1 = document.getElementById('nick1').value.trim();
     const nick2 = document.getElementById('nick2').value.trim();
@@ -243,12 +254,24 @@
     if (whatsapp.length !== 11) { alert('WhatsApp deve ter 11 dígitos'); return; }
     if (selecionados.length === 0) { alert('Selecione ao menos um horário'); return; }
 
+    const vagasReservadas = {};
+    for(const h of selecionados){
+      if(slotsDisponiveis[h] && slotsDisponiveis[h].length > 0){
+        vagasReservadas[h] = slotsDisponiveis[h][0];
+        slotsDisponiveis[h].shift();
+      } else {
+        alert(`Não há vagas disponíveis para o horário ${h}`);
+        return;
+      }
+    }
+
     const data = new Date();
     const nova = {
       nick1,
       nick2,
       whatsapp,
       horarios: [...selecionados],
+      slots: vagasReservadas,
       dia: data.toLocaleDateString(),
       hora: data.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
@@ -265,27 +288,44 @@
     });
   }
 
-  // Mostra comprovante na tela (corrigido para copiar corretamente)
   function mostrarComprovante(dados) {
     const div = document.getElementById('comprovanteFinal');
     let texto = `📌 PAGAMENTO EM ANÁLISE!<br><br>`;
     texto += `Envie o comprovante para o ADM:<br><a href="https://wa.me/55999444193" target="_blank">📩 Clique aqui para enviar via WhatsApp</a><br><br>`;
-    texto += `<b>SEUS DADOS FORAM:</b><br>`;
-    texto += `🕒 Slot(s): ${dados.horarios.join(', ')}<br>`;
-    texto += `👤 Nick 1: ${dados.nick1}<br>`;
-    texto += `👤 Nick 2: ${dados.nick2}<br>`;
-    texto += `📱 WhatsApp: ${dados.whatsapp}<br>`;
-    texto += `📅 Data/Hora: ${dados.dia} - ${dados.hora}<br><br>`;
+    texto += `<b>SEUS DADOS FORAM:</b><br><br>`;
 
-    const textoCopiar = `🕒 Slot(s): ${dados.horarios.join(', ')}\n👤 Nick 1: ${dados.nick1}\n👤 Nick 2: ${dados.nick2}\n📱 WhatsApp: ${dados.whatsapp}\n📅 Data/Hora: ${dados.dia} - ${dados.hora}`;
+    // Agora formatado como você pediu: Slot 1 (horário)
+    // Vamos enumerar as vagas para o usuário conforme os slots reservados.
+    // Exemplo: Slot 1 (19:00)
+    //          Nick 1: ...
+    //          Nick 2: ...
+    //          Wpp: ...
+
+    let contadorSlot = 1;
+    let textoCopiar = '';
+    for(const h of dados.horarios){
+      texto += `Slot ${contadorSlot} (${h})<br>`;
+      texto += `Nick 1: ${dados.nick1}<br>`;
+      texto += `Nick 2: ${dados.nick2}<br>`;
+      texto += `Wpp: 55 ${dados.whatsapp}<br><br>`;
+
+      textoCopiar += `Slot ${contadorSlot} (${h})\n`;
+      textoCopiar += `Nick 1: ${dados.nick1}\n`;
+      textoCopiar += `Nick 2: ${dados.nick2}\n`;
+      textoCopiar += `Wpp: 55 ${dados.whatsapp}\n\n`;
+
+      contadorSlot++;
+    }
+
+    textoCopiar += `Data/Hora: ${dados.dia} - ${dados.hora}`;
 
     texto += `<button class="botao-copiar" onclick="copiarTexto(\`${textoCopiar}\`)">📋 Copiar dados para enviar ao ADM</button>`;
+
     div.innerHTML = texto;
     div.style.display = 'block';
     div.scrollIntoView({ behavior: "smooth" });
   }
 
-  // Copia dados para enviar ao ADM
   function copiarTexto(texto) {
     navigator.clipboard.writeText(texto)
       .then(() => {
@@ -296,7 +336,6 @@
       });
   }
 
-  // Login ADM
   function entrarADM() {
     const senha = document.getElementById('senhaADM').value.trim();
     if (senha === SENHA_ADM) {
@@ -308,7 +347,6 @@
     }
   }
 
-  // Mostrar inscrições no painel ADM
   function mostrarInscricoesADM() {
     const filtro = document.getElementById('filtroHorario').value;
     const lista = document.getElementById('listaInscricoes');
@@ -327,21 +365,31 @@
     filtrados.forEach(i => {
       const div = document.createElement('div');
       div.className = 'inscricao-item';
+
+      // Mostrar os slots e horários com vaga numerada (ex: Vaga nº X)
+      let slotsTexto = '';
+      if(i.slots){
+        let contador = 1;
+        for(const h of i.horarios){
+          const vaga = i.slots[h];
+          slotsTexto += `Slot ${contador} (${h}) - Vaga nº ${vaga}<br>`;
+          contador++;
+        }
+      }
+
       div.innerHTML = `
-        <div><b>Slot:</b> ${i.horarios.join(', ')}</div>
+        <div><b>Slots:</b><br>${slotsTexto}</div>
         <div><b>Nick 1:</b> ${i.nick1}</div>
         <div><b>Nick 2:</b> ${i.nick2}</div>
-        <div><b>WhatsApp:</b> ${i.whatsapp}</div>
+        <div><b>Wpp:</b> 55 ${i.whatsapp}</div>
         <button class="btn-excluir" onclick="excluirInscricao('${i.id}')">Excluir</button>
       `;
       lista.appendChild(div);
     });
   }
 
-  // Excluir inscrição Firebase
   function excluirInscricao(id) {
     if (!confirm('Confirma exclusão dessa inscrição?')) return;
-
     db.ref('inscritos/' + id).remove()
       .then(() => {
         alert('Inscrição excluída com sucesso!');
@@ -352,7 +400,6 @@
       });
   }
 
-  // Limpar todas inscrições Firebase
   function limparInscricoes() {
     if (confirm("Deseja apagar todas as inscrições? Esta ação não pode ser desfeita.")) {
       db.ref('inscritos').remove()
@@ -366,7 +413,6 @@
     }
   }
 
-  // Inicializa carregamento Firebase e renderiza
   carregarInscritosFirebase();
 </script>
 
