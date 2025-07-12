@@ -1,4 +1,3 @@
-<!-- Começo do HTML completo -->
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -65,7 +64,29 @@
     .inscricao-item div {
       margin: 3px 0;
     }
+    .botao-copiar {
+      background:#28a745;
+      color:white;
+      padding:10px;
+      margin-top:10px;
+      border:none;
+      border-radius:6px;
+      cursor:pointer;
+      font-weight:bold;
+    }
+    .botao-copiar:hover {
+      background:#218838;
+    }
+    #valorTotalBox {
+      font-size: 20px;
+      color: #155724;
+      font-weight: bold;
+      margin-top: 10px;
+    }
   </style>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -80,14 +101,13 @@
   <input type="text" id="whatsapp" maxlength="11" oninput="this.value=this.value.replace(/\D/g,'')" />
 
   <label style="margin-top:20px;">Escolha os horários:</label>
-  <div id="horariosArea"></div>
-  <p><b>Total: R$ <span id="valorTotal">0</span>,00</b></p>
+  <div id="horariosArea">Carregando horários...</div>
+  <p id="valorTotalBox">💰 Total: R$ <span id="valorTotal">0</span>,00</p>
 
-  <!-- LINK DE PAGAMENTO ATUALIZADO -->
   <p><b>Pagamento:</b></p>
-  <a id="linkPagamento" href="https://mpago.la/1JPi8Cq" target="_blank" style="color:#007bff;">Clique aqui para pagar</a>
+  <p>Chave Pix: <b>diario1020@gmail.com</b> <button onclick="navigator.clipboard.writeText('diario1020@gmail.com')">📋 Copiar</button></p>
 
-  <button id="btnConfirmar">✅ Confirmar Pagamento</button>
+  <button onclick="confirmarInscricao()">✅ Confirmar Pagamento</button>
 </div>
 
 <div class="comprovante" id="comprovanteFinal" style="display:none;"></div>
@@ -96,34 +116,22 @@
 <div class="painel">
   <h3>🔐 Painel ADM</h3>
   <input type="password" id="senhaADM" placeholder="Senha do ADM" />
-  <button id="btnEntrarADM">Entrar</button>
+  <button onclick="entrarADM()">Entrar</button>
   <div id="painelArea" style="display:none; margin-top:20px;">
     <h4>Filtrar por horário:</h4>
-    <select id="filtroHorario">
+    <select id="filtroHorario" onchange="mostrarInscricoesADM()">
       <option value="">-- Todos --</option>
       <option value="19:00">19:00</option>
       <option value="20:00">20:00</option>
       <option value="21:00">21:00</option>
     </select>
     <div id="listaInscricoes" style="margin-top:15px;"></div>
-
-    <h4>Links por horário:</h4>
-    <label>Link 19:00</label>
-    <input type="text" id="link19" />
-    <label>Link 20:00</label>
-    <input type="text" id="link20" />
-    <label>Link 21:00</label>
-    <input type="text" id="link21" />
-    <button id="btnSalvarLinks">💾 Salvar Links</button>
-
-    <button class="btn-limpar" id="btnLimparInscricoes">🗑️ Apagar todas inscrições</button>
+    <button class="btn-limpar" onclick="limparInscricoes()">🗑️ Apagar todas inscrições</button>
   </div>
 </div>
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-  import { getDatabase, ref, push, onValue, remove, set, get } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
-
+<script>
+  // Firebase config e inicialização
   const firebaseConfig = {
     apiKey: "AIzaSyCDG1XlsNYrBkcJFQaxztV-g_f5KmWKTKQ",
     authDomain: "diaroins.firebaseapp.com",
@@ -134,60 +142,46 @@
     appId: "1:496629295432:web:ec32adceccd3e2d8162b7d",
     measurementId: "G-47GHPMMC59"
   };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
   const SENHA_ADM = "2734";
   const VALOR_POR_HORA = 3;
   const VAGAS_INICIAIS = 24;
 
-  let inscritos = {};
-  let links = {
-    "19:00": "https://exemplo.com/19",
-    "20:00": "https://exemplo.com/20",
-    "21:00": "https://exemplo.com/21"
-  };
-
+  let inscritos = [];
   let vagasDisponiveis = { "19:00": VAGAS_INICIAIS, "20:00": VAGAS_INICIAIS, "21:00": VAGAS_INICIAIS };
   let selecionados = [];
 
-  async function carregarLinks() {
-    try {
-      const snapshot = await get(ref(db, "links"));
-      if(snapshot.exists()) {
-        links = snapshot.val();
+  // Carregar inscritos do Firebase e renderizar
+  function carregarInscritosFirebase() {
+    db.ref('inscritos').on('value', snapshot => {
+      inscritos = [];
+      const data = snapshot.val();
+      if (data) {
+        for (const key in data) {
+          inscritos.push({ ...data[key], id: key });
+        }
       }
-      document.getElementById('link19').value = links["19:00"] || "";
-      document.getElementById('link20').value = links["20:00"] || "";
-      document.getElementById('link21').value = links["21:00"] || "";
-    } catch(e) {
-      console.error("Erro ao carregar links:", e);
-    }
+      renderHorarios();
+      if (document.getElementById('painelArea').style.display === 'block') mostrarInscricoesADM();
+    }, error => {
+      alert('Erro ao carregar dados do Firebase: ' + error.message);
+      document.getElementById('horariosArea').innerHTML = 'Erro ao carregar horários.';
+    });
   }
 
-  async function salvarLinks() {
-    links["19:00"] = document.getElementById('link19').value.trim();
-    links["20:00"] = document.getElementById('link20').value.trim();
-    links["21:00"] = document.getElementById('link21').value.trim();
-    try {
-      await set(ref(db, "links"), links);
-      alert("Links salvos com sucesso!");
-    } catch(e) {
-      alert("Erro ao salvar links");
-      console.error(e);
-    }
-  }
-
+  // Atualiza vagas disponíveis de acordo com inscritos
   function atualizarVagas() {
     vagasDisponiveis = { "19:00": VAGAS_INICIAIS, "20:00": VAGAS_INICIAIS, "21:00": VAGAS_INICIAIS };
-    Object.values(inscritos).forEach(i => {
+    inscritos.forEach(i => {
       i.horarios.forEach(h => {
         if (vagasDisponiveis[h] > 0) vagasDisponiveis[h]--;
       });
     });
   }
 
+  // Renderiza botões dos horários
   function renderHorarios() {
     atualizarVagas();
     const area = document.getElementById('horariosArea');
@@ -198,6 +192,7 @@
       btn.type = "button";
 
       if (selecionados.includes(h)) {
+        // Conta vaga a menos porque já selecionou
         vagas = vagas - 1;
         btn.className = 'horario-btn selected';
       } else {
@@ -214,6 +209,8 @@
       }
 
       btn.onclick = () => {
+        if (btn.disabled) return; // não faz nada se lotado
+
         if (selecionados.includes(h)) {
           selecionados = selecionados.filter(x => x !== h);
         } else {
@@ -223,7 +220,6 @@
         }
         renderHorarios();
         atualizarValorTotal();
-        atualizarLinkPagamento();
       };
 
       area.appendChild(btn);
@@ -231,42 +227,21 @@
     atualizarValorTotal();
   }
 
+  // Atualiza valor total exibido
   function atualizarValorTotal() {
     document.getElementById('valorTotal').textContent = selecionados.length * VALOR_POR_HORA;
   }
 
-  // ✅ FUNÇÃO ATUALIZADA COM OS LINKS DE PAGAMENTO CORRETOS
-  function atualizarLinkPagamento() {
-    const link = document.getElementById('linkPagamento');
-    const valorTotal = selecionados.length * VALOR_POR_HORA;
-
-    if (valorTotal === 0) {
-      link.textContent = 'Clique aqui para pagar';
-      link.href = 'https://mpago.la/1JPi8Cq';
-    } else if (valorTotal === 3) {
-      link.textContent = 'Pagar R$ 3,00';
-      link.href = 'https://mpago.la/1JPi8Cq';
-    } else if (valorTotal === 6) {
-      link.textContent = 'Pagar R$ 6,00';
-      link.href = 'https://mpago.la/196kFhN';
-    } else if (valorTotal === 9) {
-      link.textContent = 'Pagar R$ 9,00';
-      link.href = 'https://mpago.la/2vo1T6X';
-    } else {
-      link.textContent = 'Valor inválido';
-      link.href = '#';
-    }
-  }
-
-  async function confirmarInscricao() {
+  // Confirma inscrição: salva no Firebase
+  function confirmarInscricao() {
     const nick1 = document.getElementById('nick1').value.trim();
     const nick2 = document.getElementById('nick2').value.trim();
     const whatsapp = document.getElementById('whatsapp').value.trim();
 
-    if (!nick1 || !nick2 || whatsapp.length !== 11 || selecionados.length === 0) {
-      alert('Preencha todos os campos corretamente.');
-      return;
-    }
+    if (!nick1) { alert('Preencha Nick 1'); return; }
+    if (!nick2) { alert('Preencha Nick 2'); return; }
+    if (whatsapp.length !== 11) { alert('WhatsApp deve ter 11 dígitos'); return; }
+    if (selecionados.length === 0) { alert('Selecione ao menos um horário'); return; }
 
     const data = new Date();
     const nova = {
@@ -275,71 +250,67 @@
       whatsapp,
       horarios: [...selecionados],
       dia: data.toLocaleDateString(),
-      hora: data.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+      hora: data.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    try {
-      await push(ref(db, "inscritos"), nova);
-      alert("Inscrição confirmada com sucesso!");
+    db.ref('inscritos').push(nova).then(() => {
       selecionados = [];
       document.getElementById('nick1').value = '';
       document.getElementById('nick2').value = '';
       document.getElementById('whatsapp').value = '';
-      renderHorarios();
-      atualizarLinkPagamento();
+      carregarInscritosFirebase();
       mostrarComprovante(nova);
-    } catch(e) {
-      alert("Erro ao confirmar inscrição");
-      console.error(e);
-    }
+    }).catch((error) => {
+      alert('Erro ao salvar inscrição: ' + error.message);
+    });
   }
 
+  // Mostra comprovante na tela
   function mostrarComprovante(dados) {
     const div = document.getElementById('comprovanteFinal');
-    let html = `<h4>🎉 Inscrição Confirmada</h4>`;
-    html += `<p><b>Nick 1:</b> ${dados.nick1}</p>`;
-    html += `<p><b>Nick 2:</b> ${dados.nick2}</p>`;
-    html += `<p><b>WhatsApp:</b> ${dados.whatsapp}</p>`;
-    html += `<p><b>Data:</b> ${dados.dia}</p>`;
-    html += `<p><b>Hora:</b> ${dados.hora}</p>`;
-    html += `<p><b>Links para Grupo (ID e SENHA):</b></p><ul>`;
-    dados.horarios.forEach(h => {
-      html += `<li>Grupo ${h} (<a href="${links[h]}" target="_blank">link</a>)</li>`;
-    });
-    html += `</ul><p><b>📸 Tire print desta tela. Este é seu comprovante.</b></p>`;
-    div.innerHTML = html;
+    let texto = `📌 PAGAMENTO EM ANÁLISE!<br><br>`;
+    texto += `Envie o comprovante para o ADM:<br><a href="https://wa.me/55999444193" target="_blank">📩 Clique aqui para enviar via WhatsApp</a><br><br>`;
+    texto += `<b>SEUS DADOS FORAM:</b><br>`;
+    texto += `🕒 Slot(s): ${dados.horarios.join(', ')}<br>`;
+    texto += `👤 Nick 1: ${dados.nick1}<br>`;
+    texto += `👤 Nick 2: ${dados.nick2}<br>`;
+    texto += `📱 WhatsApp: ${dados.whatsapp}<br>`;
+    texto += `📅 Data/Hora: ${dados.dia} - ${dados.hora}<br><br>`;
+    texto += `<button class="botao-copiar" onclick="copiarTexto('${dados.horarios.join(', ')}','${dados.nick1}','${dados.nick2}','${dados.whatsapp}','${dados.dia}','${dados.hora}')">📋 Copiar dados para enviar ao ADM</button>`;
+    div.innerHTML = texto;
     div.style.display = 'block';
-    div.scrollIntoView({behavior:"smooth"});
+    div.scrollIntoView({ behavior: "smooth" });
   }
 
-  function carregarInscritos() {
-    const inscritosRef = ref(db, "inscritos");
-    onValue(inscritosRef, (snapshot) => {
-      inscritos = snapshot.val() || {};
-      renderHorarios();
-      mostrarInscricoesADM();
-    });
+  // Copia dados para enviar ao ADM
+  function copiarTexto(slot, nick1, nick2, whatsapp, dia, hora) {
+    const texto = `🕒 Slot(s): ${slot}\n👤 Nick 1: ${nick1}\n👤 Nick 2: ${nick2}\n📱 WhatsApp: ${whatsapp}\n📅 Data/Hora: ${dia} - ${hora}`;
+    navigator.clipboard.writeText(texto);
+    alert("Dados copiados com sucesso!");
   }
 
+  // Login ADM
   function entrarADM() {
     const senha = document.getElementById('senhaADM').value.trim();
     if (senha === SENHA_ADM) {
       document.getElementById('painelArea').style.display = 'block';
       document.getElementById('senhaADM').value = '';
-      carregarLinks();
-      carregarInscritos();
+      mostrarInscricoesADM();
     } else {
       alert('Senha incorreta');
     }
   }
 
+  // Mostrar inscrições no painel ADM
   function mostrarInscricoesADM() {
     const filtro = document.getElementById('filtroHorario').value;
     const lista = document.getElementById('listaInscricoes');
     lista.innerHTML = '';
 
-    const inscritosArray = Object.entries(inscritos).map(([key, val]) => ({key, ...val}));
-    const filtrados = filtro ? inscritosArray.filter(i => i.horarios.includes(filtro)) : inscritosArray;
+    let filtrados = inscritos;
+    if (filtro) {
+      filtrados = inscritos.filter(i => i.horarios.includes(filtro));
+    }
 
     if (filtrados.length === 0) {
       lista.innerHTML = '<p>Nenhuma inscrição.</p>';
@@ -354,54 +325,42 @@
         <div><b>Nick 1:</b> ${i.nick1}</div>
         <div><b>Nick 2:</b> ${i.nick2}</div>
         <div><b>WhatsApp:</b> ${i.whatsapp}</div>
-        <button class="btn-excluir" onclick="excluirInscricao('${i.key}')">Excluir</button>
+        <button class="btn-excluir" onclick="excluirInscricao('${i.id}')">Excluir</button>
       `;
       lista.appendChild(div);
     });
   }
 
-  async function excluirInscricao(id) {
-    if (!confirm("Confirma exclusão desta inscrição?")) return;
-    try {
-      await remove(ref(db, `inscritos/${id}`));
-      alert("Inscrição removida!");
-      carregarInscritos();
-    } catch(e) {
-      alert("Erro ao remover inscrição");
-      console.error(e);
+  // Excluir inscrição Firebase
+  function excluirInscricao(id) {
+    if (!confirm('Confirma exclusão dessa inscrição?')) return;
+
+    db.ref('inscritos/' + id).remove()
+      .then(() => {
+        alert('Inscrição excluída com sucesso!');
+        carregarInscritosFirebase();
+      })
+      .catch(error => {
+        alert('Erro ao excluir: ' + error.message);
+      });
+  }
+
+  // Limpar todas inscrições Firebase
+  function limparInscricoes() {
+    if (confirm("Deseja apagar todas as inscrições? Esta ação não pode ser desfeita.")) {
+      db.ref('inscritos').remove()
+        .then(() => {
+          alert('Todas inscrições apagadas!');
+          carregarInscritosFirebase();
+        })
+        .catch(error => {
+          alert('Erro ao apagar inscrições: ' + error.message);
+        });
     }
   }
 
-  async function limparInscricoes() {
-    if (!confirm("Deseja apagar todas as inscrições? Esta ação não pode ser desfeita.")) return;
-    try {
-      await remove(ref(db, "inscritos"));
-      alert("Todas inscrições apagadas!");
-      carregarInscritos();
-      document.getElementById('comprovanteFinal').style.display = 'none';
-    } catch(e) {
-      alert("Erro ao apagar inscrições");
-      console.error(e);
-    }
-  }
-
-  window.confirmarInscricao = confirmarInscricao;
-  window.entrarADM = entrarADM;
-  window.salvarLinks = salvarLinks;
-  window.limparInscricoes = limparInscricoes;
-  window.excluirInscricao = excluirInscricao;
-  window.mostrarInscricoesADM = mostrarInscricoesADM;
-
-  document.getElementById('btnConfirmar').addEventListener('click', confirmarInscricao);
-  document.getElementById('btnEntrarADM').addEventListener('click', entrarADM);
-  document.getElementById('btnSalvarLinks').addEventListener('click', salvarLinks);
-  document.getElementById('btnLimparInscricoes').addEventListener('click', limparInscricoes);
-  document.getElementById('filtroHorario').addEventListener('change', mostrarInscricoesADM);
-
-  carregarLinks();
-  carregarInscritos();
-  renderHorarios();
-  atualizarLinkPagamento();
+  // Inicializa carregamento Firebase e renderiza
+  carregarInscritosFirebase();
 </script>
 
 </body>
