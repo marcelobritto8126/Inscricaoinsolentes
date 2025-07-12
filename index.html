@@ -265,7 +265,7 @@
     });
   }
 
-  // Mostra comprovante na tela
+  // Mostra comprovante na tela (corrigido para copiar corretamente)
   function mostrarComprovante(dados) {
     const div = document.getElementById('comprovanteFinal');
     let texto = `📌 PAGAMENTO EM ANÁLISE!<br><br>`;
@@ -276,17 +276,24 @@
     texto += `👤 Nick 2: ${dados.nick2}<br>`;
     texto += `📱 WhatsApp: ${dados.whatsapp}<br>`;
     texto += `📅 Data/Hora: ${dados.dia} - ${dados.hora}<br><br>`;
-    texto += `<button class="botao-copiar" onclick="copiarTexto('${dados.horarios.join(', ')}','${dados.nick1}','${dados.nick2}','${dados.whatsapp}','${dados.dia}','${dados.hora}')">📋 Copiar dados para enviar ao ADM</button>`;
+
+    const textoCopiar = `🕒 Slot(s): ${dados.horarios.join(', ')}\n👤 Nick 1: ${dados.nick1}\n👤 Nick 2: ${dados.nick2}\n📱 WhatsApp: ${dados.whatsapp}\n📅 Data/Hora: ${dados.dia} - ${dados.hora}`;
+
+    texto += `<button class="botao-copiar" onclick="copiarTexto(\`${textoCopiar}\`)">📋 Copiar dados para enviar ao ADM</button>`;
     div.innerHTML = texto;
     div.style.display = 'block';
     div.scrollIntoView({ behavior: "smooth" });
   }
 
   // Copia dados para enviar ao ADM
-  function copiarTexto(slot, nick1, nick2, whatsapp, dia, hora) {
-    const texto = `🕒 Slot(s): ${slot}\n👤 Nick 1: ${nick1}\n👤 Nick 2: ${nick2}\n📱 WhatsApp: ${whatsapp}\n📅 Data/Hora: ${dia} - ${hora}`;
-    navigator.clipboard.writeText(texto);
-    alert("Dados copiados com sucesso!");
+  function copiarTexto(texto) {
+    navigator.clipboard.writeText(texto)
+      .then(() => {
+        alert("Dados copiados com sucesso!");
+      })
+      .catch(() => {
+        alert("Erro ao copiar os dados.");
+      });
   }
 
   // Login ADM
@@ -364,4 +371,4 @@
 </script>
 
 </body>
-  </html>
+</html>
